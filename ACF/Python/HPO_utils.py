@@ -162,7 +162,7 @@ def objective_ACF(trial, X_train, y_train, n_splits, test_size, metric, baseline
     trial : optuna trial
         Trial for study.
     X_train : np.ndarray
-        Array of shape n_train x n_train with the correlations of all training observations
+        Array of shape (n_train,n_train/(n_classes x n_references)) with the correlations of all training observations
     y_train : np.ndarray
         Corresponding training labels.
     n_splits : int
@@ -220,7 +220,10 @@ def objective_ACF(trial, X_train, y_train, n_splits, test_size, metric, baseline
     # iterate over splits
     for train_index, test_index in ss.split(X_train, y_train):
         # NOTE: X_train is the correlation matrix! So we need to select suitable subsets of that
-        x_t, x_v = X_train[np.ix_(train_index, train_index)], X_train[np.ix_(test_index, train_index)]
+        if variant=="F-ACF":
+            x_t, x_v = X_train[train_index,:], X_train[test_index,:]
+        else:
+            x_t, x_v = X_train[np.ix_(train_index, train_index)], X_train[np.ix_(test_index, train_index)]
         y_t, y_v = y_train[train_index], y_train[test_index]
         # build acf classifier
         acf = ACF.ACFClassifier(model, strategy=strategy, variant=variant, n_ref = n_ref, precomputed = True, scale_Corrmat = scale_Corrmat, normalize_AC = normalize_AC)
@@ -518,8 +521,12 @@ def characterize_ACF(corr, y, n_iter=60, n_splits=10, test_size=0.05, baseline_c
         optuna.logging.set_verbosity(optuna.logging.WARNING) # silence output
         
         # select training- und test parts of the precomputed correlation matrix
-        corr_train = corr[np.ix_(train_idx, train_idx)]
-        corr_test = corr[np.ix_(test_idx, train_idx)]
+        if variant=="F-ACF":
+            corr_train = corr[train_idx]
+            corr_test = corr[test_idx]
+        else:
+            corr_train = corr[np.ix_(train_idx, train_idx)]
+            corr_test = corr[np.ix_(test_idx, train_idx)]
         # select training- and test parts of the additiona covariable (optional, since it may be empty)
         if len(X_c)!=0:
             X_c_train = X_c[train_idx,:]
@@ -533,7 +540,7 @@ def characterize_ACF(corr, y, n_iter=60, n_splits=10, test_size=0.05, baseline_c
         study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler())
         if len(X_c)!=0: # if we have a covariable
             study.optimize(lambda trial: objective_ACF(trial, corr_train, y_train, n_splits, test_size, metric, baseline_classifier, variant, n_ref, X_c_train=X_c_train), n_trials=n_iter)
-        else: # if we don't havve a covariable
+        else: # if we don't have a covariable
             study.optimize(lambda trial: objective_ACF(trial, corr_train, y_train, n_splits, test_size, metric, baseline_classifier, variant, n_ref), n_trials=n_iter)
         
         # selected parameters
@@ -563,6 +570,16 @@ def characterize_ACF(corr, y, n_iter=60, n_splits=10, test_size=0.05, baseline_c
     # 10-fold Stratified K-Fold
     
     skf = StratifiedKFold(n_splits=10)
+    # if ACF, need to pre-select the reference instances
+    if variant=="F-ACF":
+        indices_per_class = []
+        rng = np.random.default_rng()
+        classes = np.unique(y)
+        for c in classes:
+            available_indices = np.where(y == c)[0]
+            indices_per_class.append(rng.choice(available_indices, size=n_ref, replace=False))
+        all_indices = np.hstack(indices_per_class)
+        corr = corr[:,all_indices]
     try:
         results = Parallel(n_jobs=-1, timeout=timeout)(delayed(parallel_studies)(train_idx,test_idx) for train_idx,test_idx in skf.split(corr, y))
     except:

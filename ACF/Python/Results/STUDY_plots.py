@@ -139,10 +139,11 @@ plt.show()
 #------------------------------------------------------------------------------
 
 runtime_data = pd.read_csv("raw/FACF_KNN_TimeComplexity.csv", index_col=0)
+runtime_data_untuned = runtime_data[runtime_data["Algorithm"]!="F-ACF, Optimized"]
 
 
 fig, axs = plt.subplots(ncols=1, nrows=1)
-sns.lineplot(data=runtime_data, x="Train Size", y="Runtime", style="Algorithm", hue="References", ax=axs)
+sns.lineplot(data=runtime_data_untuned, x="Train Size", y="Runtime", style="Algorithm", hue="References", ax=axs)
 axs.set_xlabel("Number of Training Instances")
 axs.set_ylabel("Runtime per Predicted Test Instance in s")
 axs.set_title("Runtime per Predicted Test Instance for KNN, DBC and F-ACF")
@@ -153,9 +154,32 @@ plt.show()
 # suppl. information
 a = runtime_data.pivot_table(index="Train Size", columns=["Algorithm", "References"], values="Value")
 #
-tot = np.concatenate(((a["F-ACF"]["10"]>a["F-DBC"]["10"]).values, (a["F-ACF"]["20"]>a["F-DBC"]["20"]).values, (a["F-ACF"]["30"]>a["F-DBC"]["30"]).values))
-print("Average F-ACF is in {} percent of the cases better than the respective F-DBC counterpart.".format(round(np.sum(tot)/len(tot)*100, 2)))
+tot_untuned = np.concatenate(((a["F-ACF"]["10"]>a["F-DBC"]["10"]).values, (a["F-ACF"]["20"]>a["F-DBC"]["20"]).values, (a["F-ACF"]["30"]>a["F-DBC"]["30"]).values))
+print("Average F-ACF is in {} percent of the cases better than the respective F-DBC counterpart.".format(round(np.sum(tot_untuned)/len(tot_untuned)*100, 2)))
+tot_tuned = np.concatenate(((a["F-ACF, Optimized"]["10"]>a["F-DBC"]["10"]).values, (a["F-ACF, Optimized"]["20"]>a["F-DBC"]["20"]).values, (a["F-ACF, Optimized"]["30"]>a["F-DBC"]["30"]).values))
+print("Average F-ACF is in {} percent of the cases better than the respective F-DBC counterpart.".format(round(np.sum(tot_tuned)/len(tot_tuned)*100, 2)))
 
+fig, axs = plt.subplots(ncols=2, nrows=1, sharey=True)
+
+for index, alg in enumerate(["F-ACF", "F-ACF, Optimized"]):
+    references_list = []
+    algs_list = []
+    win_list = []
+    for n_ref in ["10","20","30"]:
+        print(n_ref)
+        f_dbc_data = runtime_data[(runtime_data["Algorithm"]=="F-DBC")&(runtime_data["References"]==n_ref)]["Value"].values
+        f_acf_data = runtime_data[(runtime_data["Algorithm"] == alg) & (runtime_data["References"] == n_ref)]["Value"].values
+        references_list.extend([n_ref, n_ref])
+        algs_list.extend([alg, "F-DBC"])
+        win_list.extend([np.sum(f_acf_data>f_dbc_data), np.sum(f_acf_data<f_dbc_data)])
+    comp = pd.DataFrame({"References":references_list, "Algorithm":algs_list, "Wins": win_list})
+    sns.barplot(data=comp, x="References", y="Wins", hue="Algorithm", ax=axs[index])
+axs[0].set_title("No Hyperparameter Optimization")
+axs[1].set_title("With Hyperparameter Optimization")
+fig.suptitle("Comparison of F-ACF and F-DBC")
+fig.tight_layout()
+plt.savefig("suppl_facf_fdbc.pdf", bbox_inches = 'tight')
+plt.show()
 
 #------------------------------------------------------------------------------
 #                   

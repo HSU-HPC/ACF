@@ -309,18 +309,24 @@ class ACFClassifier(BaseEstimator, ClassifierMixin):
             List of the indices of the reference observations selected per class.
 
         """
-        
         indices_per_class = []
         if self.variant == None or self.variant == "B-ACF":
             for c in self.classes_:
                 indices_per_class.append(np.where(self.y_==c)[0])
-        elif self.variant == "F-ACF":
+        elif (self.variant == "F-ACF" and not self.precomputed):
             rng = np.random.default_rng()
             for c in self.classes_:
                 # select all possible training observations of the corresponding class
                 available_indices = np.where(self.y_==c)[0]
                 # randomly select n_ref of them as a subset of reference observations
                 indices_per_class.append(rng.choice(available_indices, size=self.n_ref, replace=False))
+        elif (self.variant=="F-ACF" and self.precomputed):
+            total_refs = self.X_.shape[1]
+            assert total_refs%self.n_ref==0 # need to have n_references per class
+            start_index = 0
+            for c in self.classes_:
+                indices_per_class.append(np.arange(start_index, start_index+self.n_ref))
+                start_index+=self.n_ref
         return indices_per_class
 
 
@@ -331,7 +337,7 @@ class ACFClassifier(BaseEstimator, ClassifierMixin):
         Parameters
         ----------
         X : array-like
-            Array-like of shape shape n_train x n_features (or n_train x n_reference, if precomputed=True). NaN is allowed, +- np.inf will raise an error.
+            Array-like of shape shape n_train x n_features (or n_train x (n_classes*n_reference), if precomputed=True. In this case, the reference instances should be sorted by class). NaN is allowed, +- np.inf will raise an error.
         y : list-like
             List of training-labels with length n_train.
         biased_elements : list of tuples, optional

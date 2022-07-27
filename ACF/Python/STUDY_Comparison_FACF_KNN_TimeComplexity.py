@@ -11,10 +11,13 @@ import pandas as pd
 from sklearn.model_selection import train_test_split
 from sklearn.svm import SVC
 from sklearn.metrics import f1_score
+from sklearn.dummy import DummyClassifier
 import ACF
 import CustomKNN
 import time
 import warnings
+import optuna
+from HPO_utils import objective_ACF
 warnings.simplefilter(action='ignore', category=FutureWarning)
 #------------------------------------------------------------------------------
 #                   
@@ -23,7 +26,7 @@ warnings.simplefilter(action='ignore', category=FutureWarning)
 #------------------------------------------------------------------------------
 
 n_iter = 60 # number of hyper parameter optimization steps
-n_splits = 20 # number of stratified shuffle splits in hyperparameter optimization
+n_splits = 10 # number of stratified shuffle splits in hyperparameter optimization
 test_size=0.1 # size (in percent) of the stratified shuffle test splits in hpo
 
 repetitions = 10 # number of repetitions per parameter configuration in the simulation studies
@@ -65,6 +68,7 @@ for rep in range(repetitions):
         print(train_size)
         # Consider a subsampled training dataset
         SS_X_train, _, SS_y_train, _ = train_test_split(X_train, y_train, train_size=train_size, stratify=y_train)
+
         # build and train KNN classifier
         knn = CustomKNN.CustomKNN(n_neighbors=10, weights="uniform", oversampling=False)
         knn.fit(SS_X_train, SS_y_train)
@@ -106,6 +110,27 @@ for rep in range(repetitions):
             y_t_fdbc = dbc.predict(X_test)
             end_dbc = time.perf_counter()
             performance = performance.append({"Algorithm":"F-DBC", "References":n_ref, "Train Size":SS_X_train.shape[0], "Runtime":(end_dbc-begin_dbc)/X_test.shape[0], "Value":f1_score(y_test, y_t_fdbc, average="macro"), "sigma":sigma, "diff_mu_12_mu_11":diff_mu_12_mu_11, "diff_mu_13_mu_23":diff_mu_13_mu_23}, ignore_index=True)
+
+
+            # compute correlations in correct shape
+            acf = ACF.ACFClassifier(DummyClassifier(), strategy="mean", variant="F-ACF", n_ref = n_ref)
+            acf.fit(SS_X_train, SS_y_train)
+            begin_opt_facf = time.perf_counter()
+            corr_train = acf.corr_mat.values
+            acf.predict(X_test)
+            corr_test = acf.test_corr_mat.values
             
+            study = optuna.create_study(direction="maximize", sampler=optuna.samplers.TPESampler())
+            study.optimize(lambda trial: objective_ACF(trial, corr_train, SS_y_train, n_splits, test_size, metric=lambda y_true, y_pred: f1_score(y_true, y_pred, average="macro"), baseline_classifier="SVC", variant="F-ACF", n_ref=n_ref), n_trials=n_iter)
+            # build new classifier
+            # selected parameters
+            best = study.best_params
+            model = SVC(kernel=best["kernel"],C=best["C"],class_weight=best["class_weight"], gamma=best["gamma"])
+            acf_classifier = ACF.ACFClassifier(model, strategy="mean", variant="F-ACF", n_ref = n_ref, precomputed = True, scale_Corrmat = best["scale_Corrmat"], normalize_AC = best["normalize_AC"])
+            # fit and predict
+            acf_classifier.fit(corr_train, SS_y_train)
+            y_predicted = acf_classifier.predict(corr_test)
+            end_opt_facf = time.perf_counter()
+            performance = performance.append({"Algorithm":"F-ACF, Optimized", "References":n_ref, "Train Size":SS_X_train.shape[0], "Runtime":(end_opt_facf-begin_opt_facf)/X_test.shape[0], "Value":f1_score(y_test, y_predicted, average="macro"), "sigma":sigma, "diff_mu_12_mu_11":diff_mu_12_mu_11, "diff_mu_13_mu_23":diff_mu_13_mu_23}, ignore_index=True)
     
-    performance.to_csv("Results/raw/FACF_KNN_TimeComplexity.csv")
+            performance.to_csv("Results/raw/FACF_KNN_TimeComplexity.csv")

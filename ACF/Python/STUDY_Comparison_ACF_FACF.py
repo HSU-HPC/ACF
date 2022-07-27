@@ -67,7 +67,7 @@ for rep in range(repetitions):
             for points in pointsalg2:
                 logging.info("Testing F-ACF Classifier @"+str(mv)+" % missing values and "+str(points)+" points")
                 facv_svc = HPO_utils.characterize_ACF(corr, y, n_iter=n_iter, n_splits=n_splits, test_size=test_size, baseline_classifier="SVC", metric=lambda y_true, y_pred: f1_score(y_true, y_pred, average="macro"), variant="F-ACF", n_ref=points, return_individual=False, timeout=60*30)
-                if np.isnan(acv_svc):
+                if np.isnan(acv_svc): # could happen with timeout settings
                     found_error = True
                     break # go to new iteration of while loop and generate new dataset
                 else:
