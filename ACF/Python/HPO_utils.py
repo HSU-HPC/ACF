@@ -7,6 +7,7 @@ Utility functions for Hyperparameter Optimization and Validation
 from sklearn.svm import SVC
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import RidgeClassifier
+from sklearn.neural_network import MLPClassifier
 from sklearn.model_selection import StratifiedShuffleSplit, StratifiedKFold
 from sklearn.metrics import f1_score
 from sklearn.preprocessing import StandardScaler, OrdinalEncoder
@@ -211,6 +212,13 @@ def objective_ACF(trial, X_train, y_train, n_splits, test_size, metric, baseline
         alpha = trial.suggest_loguniform("alpha", 1e-3,1e4) # regularization
         class_weight = trial.suggest_categorical("class_weight", ["balanced", None])
         model = RidgeClassifier(alpha=alpha, class_weight=class_weight) # build model
+    elif baseline_classifier == "MLP":
+        learning_rate_init = trial.suggest_loguniform("lri", 1e-4,1e-2)
+        learning_rate = trial.suggest_categorical("lr", ["constant", "adaptive"])
+        activation = trial.suggest_categorical("activation", ["logistic", "tanh", "relu"])
+        alpha = trial.suggest_loguniform("alpha", 1e-4,1e-1)
+        hidden_layer_sizes = trial.suggest_int("hidden_layer_sizes",1,40)
+        model = MLPClassifier(hidden_layer_sizes=(hidden_layer_sizes,), activation=activation, alpha=alpha, learning_rate=learning_rate, learning_rate_init=learning_rate_init, max_iter=400)
         
     # compute metric on stratified shuffle splits
     ss = StratifiedShuffleSplit(n_splits=n_splits, test_size=test_size)
@@ -240,6 +248,7 @@ def objective_ACF(trial, X_train, y_train, n_splits, test_size, metric, baseline
     #with warnings.catch_warnings():
     #warnings.filterwarnings("ignore", category=RuntimeWarning)
     perfmet = metric(true, pred) # compute user-selected metric
+    print(perfmet)
     return perfmet
 
 
@@ -553,6 +562,9 @@ def characterize_ACF(corr, y, n_iter=60, n_splits=10, test_size=0.05, baseline_c
             model = RandomForestClassifier(n_estimators=best["n_estimators"], max_depth=best["max_depth"], max_features = best["max_features"], class_weight=best["class_weight"])
         elif baseline_classifier == "Ridge":
             model = RidgeClassifier(alpha=best["alpha"], class_weight=best["class_weight"])
+        elif baseline_classifier == "MLP":
+            print(best)
+            model = MLPClassifier(hidden_layer_sizes=(best["hidden_layer_sizes"],), activation=best["activation"], alpha=best["alpha"], learning_rate=best["lr"], learning_rate_init=best["lri"], max_iter=400)
         
         # build final ACF Classifier
         acf_classifier = ACF.ACFClassifier(model, strategy=strategy, variant=variant, n_ref = n_ref, precomputed = True, scale_Corrmat = best["scale_Corrmat"], normalize_AC = best["normalize_AC"])

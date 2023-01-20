@@ -425,7 +425,6 @@ axs[2].set_ylabel(None)
 fig.suptitle("Comparison on Three scRNA-seq Datasets")
 fig.tight_layout()
 plt.savefig("scrnaseq-comp.pdf", bbox_inches = 'tight')
-
 plt.show()
 
 #------------------------------------------------------------------------------
