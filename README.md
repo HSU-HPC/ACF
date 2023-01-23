@@ -108,6 +108,7 @@ in  `ACF/ACF/Python/`. The most relevant files are briefly highlighted below:
     * STUDY_FigureClassDistributions.py -- Produces the figures of the class distributions from the considered datasets.
     * STUDY_analysis_dbc_xin_dataset.py -- Produces figures to explain the concept of DBC on the dataset by Xin et al.
     * STUDY_variable_importance_visualization.py -- Measures the variable importance for each class on all datasets.
+    * STUDY_analysis_acf_mlp.py -- Proof-of-concept experiment using a multi-layer perceptron as baseline classifier for ACF.
     
 Executing any STUDY_....py file will directly reproduce the corresponding results from
 the study. (Beware: Execution may take several days.)
