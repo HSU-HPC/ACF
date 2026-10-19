@@ -168,7 +168,7 @@ class ACFClassifier(BaseEstimator, ClassifierMixin):
         # compute and fill in the average correlations
         for class_counter in range(len(self.classes_)):
             for training_instance_counter in range(corr_mat.shape[0]):
-                average_correlations[training_instance_counter, class_counter] = method(corr_mat.values[training_instance_counter, np.in1d(all_indices, self.indices_per_class[class_counter]).nonzero()[0]])
+                average_correlations[training_instance_counter, class_counter] = method(corr_mat.values[training_instance_counter, np.isin(all_indices, self.indices_per_class[class_counter]).nonzero()[0]])
         
         return average_correlations
 
@@ -354,7 +354,7 @@ class ACFClassifier(BaseEstimator, ClassifierMixin):
             Instance of ACFClassifier
         """
         # check shape and no inf's
-        X,y = check_X_y(X, y, force_all_finite="allow-nan")
+        X,y = check_X_y(X, y, ensure_all_finite="allow-nan")
         if len(additional_covariable)!=0:
             X_c, y = check_X_y(additional_covariable, y)
             self.X_c = X_c # directly store as field
@@ -379,7 +379,7 @@ class ACFClassifier(BaseEstimator, ClassifierMixin):
             for reference_idx in range(len(all_indices)):
                 corr_mat[:,reference_idx] = X.corrwith(X.loc[all_indices[reference_idx]], axis=1, method=self.corr_type).values
                 # self-correlations are biased -> mask them
-                corr_mat[all_indices[reference_idx],reference_idx] = np.NaN
+                corr_mat[all_indices[reference_idx],reference_idx] = np.nan
             self.corr_mat = pd.DataFrame(corr_mat, index=X.index.values, columns=all_indices)
             
             #set biased elements to NaN
@@ -444,7 +444,7 @@ class ACFClassifier(BaseEstimator, ClassifierMixin):
 
         """
         # Validate array
-        X = check_array(X, force_all_finite="allow-nan")
+        X = check_array(X, ensure_all_finite="allow-nan")
         if len(additional_covariable)!=0:
             X_c_test = check_array(additional_covariable)
             X_c_test = np.array(X_c_test)

@@ -18,3 +18,5 @@ ACF\Python\supplementary*
 ACF/Python/supplementary*
 ACF/**/*.ipynb
 ACF\**\*.ipynb
+
+.idea/
